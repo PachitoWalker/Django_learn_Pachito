@@ -59,7 +59,7 @@
     <div class="col-lg-4 col-md-6 p-4">
         <div class="card border-primary rounded custom-shadow">
             {% if product.image %}
-            <img src={{ product.image.url }} class="card-img-top" alt="Ошибка">
+            <img src={{ product.image.url }} class="card-img-top" alt="Ошибка: изображение не найдено">
             {% else %}
             <img src="{% static "deps/images/Not found image.png" %}" class="card-img-top" alt="Не найдено">
             {% endif %}

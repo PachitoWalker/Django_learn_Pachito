@@ -2223,3 +2223,246 @@ POSTGRESQL
 
 
         Делаю коммит.
+
+
+
+ТАБЛИЦЫ ДЛЯ USERS:
+
+    1. открою pgAdmin4, и перейду\у к таблицам. Посмотрю содержимое таблицы auth_user: пкм, veiw/edit data, all rows.
+
+    2. Вижу такие поля в этой таблице: id, password, last_login, is_superuser, usernam, first_name, last_name, email, is_staff, is_active, date_joined. Не все из них мне 
+    нужны, и нет некоторых вещей, что мне нужны. Можно создать новую таблицу или переопределить эту. 
+
+    3. Открою QueryTool - меню для того, что бы писать sql-Запросы: Пкм по home, QueryTool 
+
+    4. Справа слева нажимаю file, preferences. Нахожу query tool, auto completion и включаю. Options - есть auto commit, если включено, то все запросы автоматически применяются
+
+    5. Выберу все товары дешевле 50: 
+
+        Select * from porduct where price < 50;
+
+        Для запуска сверху нажму значек плей. 
+
+    6. Попробую удалить таблицу auth_user: 
+    
+        DROP table auth_user;
+
+    Не получится из-за ограничения: присутствуют зависимые объекты. Предлогается использовать DROP .. CASCADE, что я и сделаю:
+
+        Drop table auth_user CASCADE;
+
+    7. Получилось. Но тем не менее, все таблицы с auth (auth_group, auth_group_premission и тд) связаны, и их тоже надо удалить. Можно делать это по одной, но проще... 
+    Снести все)
+
+        ПКМ по home > delete (Force)
+
+    8. Создаю новую:
+
+        Пкм по databases > creata > database. 
+
+        Заполняю поля:
+
+            database - home 
+
+            owner - home 
+
+            Проверяю, что кодировка UTF8 (defifnition)
+
+        Нажимаю "Создать".
+
+    9. Все, таблиц нету. Хорошо. Теперь переопределю модель User:
+
+        1. В файле models.py Создаю класс User, который наследуется от AbstractUser (необходимо импортировать из django.contrib.auth.models)
+
+        2. Пишу его атрибут - image:
+
+            image = models.ImageField(upload_to="users_images", blank=True, null=True, verbose_name='Аватар', )
+        
+        3. Копирую вложенный класс Meta и метод __str__ из goods.models:
+
+            class Meta:
+                db_table = 'user'
+                verbose_name = 'Пользователя'
+                verbose_name_plural = 'Пользователи', 
+
+            def __str__(self):
+                return self.username
+
+
+
+    10. Регистрирую модель в админке:
+
+        1. В файле admin.py:
+
+            from users.models import User
+
+            admin.site.register(User)
+        
+        2. В файле apps.py:
+
+            Запишу verbose_name:
+
+                verbose_name = "Пользователь"
+
+        3. Указываю django, что я переопределил модел auth_user, тк он все равно может создать свою: 
+
+            В settings.py в самом низу пишу: 
+             
+                AUTH_USER_MODEL = 'users.User'
+            
+
+    11. Делаю и применяю миграции, создаю суперпользователя:
+
+        python manage.py makemigrations 
+        python manage.py migrate
+        python manage.py createsuperuser
+
+    12. Подгружаю бд из fixtures
+
+        python manage.py loaddata fixtures/goods/categories.json
+        python manage.py loaddata fixtures/goods/products.json
+
+    13. Запущусь, проверю все и зайду в админ-панель. Вижу, что таблица пользователи авторизована. Проверю: есть ли возможность загрузить изображение - есть, хорошо.
+
+
+
+ФОРМЫ:
+
+    У меня уже была форма - каталог, она была в разметке html и отправляла GET-запрос с доп-параметрами. С бэккендом она никак не была связана. 
+
+    Открою файл login.html. Там тоже есть форма - тег form. Чем она отличается от формы каталога? Тем, что в ней будут отправляться очень важные данные - это логин и пароль,
+    возможно почта и коды подтверждения. Передавать через GET-запросы эти данные нельзя. 
+
+    1. Запишу для form параметр action, и в него передам маршрут к контроллеру входа, а так же метод запроса - POST:
+
+        <form action="{% url "user:login" %}" method = 'post'>
+
+    2. Что такое post-запрос? В отличии от GET-запроса, POST-запрос отправляет данные в виде словаря, который шифруется, и его не видно в url-адрессе. И с ним работать нужно 
+    иначе, чем с GET-запросами: их нужно проверять на валидность и отправлять в базу данных
+
+    3. Открою users и создам файл forms.py, в нем я буду описывать эту форму:
+
+        1. Импортирую из django пакет forms
+
+            from django import forms 
+
+        2. Создаю форму (описываю в классе), и вложенный класс Meta:
+
+            class UserLoginForm():
+                class Meta
+
+            
+            Поясню, для чего нужен класс, описывающий форму: для того, что бы подключить валидаторы (валидаторы проверяют, есть ли, например, в почте знак @)
+
+            Есть 2 типа форм: формы связанные с моделями, и не связанные. Формы связанные с моделями автоматически применяют все валидаторы, применимые и к полям в таблице в БД
+
+        3. Открою models.py (приложения goods), и посмотрю на атрибут name класса Categories: это поле обязательное, оно обязательно меньше 150 символов. Значит, в форме 
+        имя будет обязательным, и оно строго должно быть меньше 150 символов 
+
+        4. Класс UserLoginForm должен наследоваться от AuthenticationForm (его необходимо импортировать из django.contrib.auth.forms)
+
+        5. В классе Meta создаю атрибут model. С какой моделью я работаю? с User => model = User (не забудь импортировать.)
+
+        5. Открываю контроллер login, и создаю атрибут form рабвный UserLoginForm, передаю этот атрибут в контекст (не забудь импортировать UserLoginForm)
+
+            form = UserLoginForm()
+            context = {
+                'title':'Home - Авторизация',
+                'form':form,
+            }
+
+        6. В login.html закоментирую все внутри тега form, кроме тега <button> в конце, и вместо этой разметки укажу мой атрибут из контекста 
+        (Естесственно в плейсхолдере) - {{ form }}. Зайдя на сайт, я увижу, что форма, хоть и криво, но отображается. Но как, если разметка закомментирована? А очень просто: 
+        я создал форму в forms.py, и при ее вызове в контроллере автоматически создается эта разметка. Ее можно посмотреть при помощи кода элемента в браузере. Я увижу, что 
+        даже type для пароля указан как password, и отображается точками.
+
+        7. При нажатии кнопки "Войти", при помощи Post запроса данные отправятся в мой контроллер login, где я и должен провести проверку на валидность:
+
+            Итоговый вид контроллера login:
+
+                def login(request):
+                    if request.method == 'POST':
+                        form = UserLoginForm(data=request.POST)
+                        if form.is_valid():
+                            username = request.POST['username']
+                            password = request.POST['password']
+                            user = auth.authenticate(username = username, password = password)
+                            if user:
+                                auth.login(request, user)
+                                return HttpResponseRedirect(reverse('main:index'))
+                    else:
+                        form = UserLoginForm()
+                        
+                    context = {
+                        'title':'Home - вход',
+                        'form':form, 
+                    }
+                    return render(request, 'users/login.html', context)
+
+                
+            Пояснение:
+
+                1. Проверка: если получен GET-запрос (например, про открытии страницы входа), формирую пустую форму и отрисовываю ее. Иначе:
+                2. Форму наполняю данными, введенными пользователем (form = UserLoginForm(data=request.POST))
+                3. Если форма валидна, то:
+                4. Имя и пароль - это введенные пользвоателем значения в форму соответственно username и password, которые я получаю из POST-запроса
+                    (username = request.POST['username'], password = request.POST['password']) 
+                5. Присвоить переменной user проверку, что введенные пользователем username и password совпадают с данными в БД. Если совпадают, то (user=auth.authenticate(username=username,password=password))
+                6. Если да, совпадают (if user:)
+                7. Авторизировать пользователя (auth.login(request, user))
+                8. Перенаправить на главную (return HttpResponseRedirect(reverse('main:index')))  (функция reverse преобразует 'main:index' в url-адрес, HttpResponseRedirect - перенаправляет на этот адрес.)
+
+                Проверю данный код:
+
+        8. У меня уже есть пользователь root - попробую войти через него: ошибка доступа. Это потому, что в Post запросах каждый раз делается скрытый тег input с уникальным сгенерированным csrf-токеном 
+        конкретно для этой страницы на этом устройстве в этот момент времени. Это сделано для того, что бы уберечь сайт и пользователя от сайтов подделок и перехвата данных. 
+
+        9. Что бы можно было войти, нужно в теге form указать {% csrf_token %}. Так же нужно выйти из админ-панели.
+
+        10. Отлично, все получилось. А если ввести неверные данные? Выйду еще раз из админ панели, и введу, к примеру, неправильный пароль. И вот: предупреждение, что имя пользователя или пароль неверны. 
+
+        11. Теперь нужно поправить форму. Я работаю сейчас с формой, привязанной к модели: в файле forms.py я прикрепил форму к User, то есть форма перенимает все атрибуты модели User. А форма, которая 
+        возвращается при обновлении страницы (ну например неправильно введен пароль или имя, имя то сохраняется в форме) называется связанной с сеансом. В коде элемента у поля username есть параметры 
+        которые я не указывал в модели User - value="root", autocomplete=username. Но если вспомнить, то в модели User заметно больше полей, чем в браузере. Временно изменю часть кода:
+
+            1. В forms.py UserLoginForm будет наследоваться не от AuthenticationForm, а от базового класса forms.ModelForm. При запуске сервера джанго не поймет, какие поля надо указывать, а какие нет.
+             Загляну в AuthenticationForm: нажму на него и на f12. Я вижу два атрибута - username и password, в которых указывается, какие из виджетов отображать. Их нужно записать как атрибуты 
+             в классе META:
+                
+                class Meta:
+                    model = User 
+                    fields = [
+                        'username',
+                        'password'
+                    ]
+
+
+
+                Ошибки уже не будет, но форма теперь выглядит немного иначе: это потому, что AuthenticationForm по сути и есть mdoels.ModelForm, но модифицированный. Взгляну на эту форму через код элемента:
+                помимо username и password появился еще и span с классом helptext. При создании модели можно тоже указать доп. атрибут helptext с доп. информацией. password теперь не скрывается.
+            
+            2. Верну наследование от AuthenticationForm, но вручную укажу поля: 
+
+                1. Создам атрибут username = forms.CharField()      - что такое CharField ты помнишь, только на этот раз он используется для формы, а 
+                 не модели. дрругие атрибуты можно увидеть, наведясь на скобки.
+
+                2. Создам атрибут password = forms.CharField() и зайду на сайт посмотреть: перекроются ли атрибуты. Да, подтянулись атрибуты из бд, но из AuthenticationForm - нет. Скопирую часть текста 
+                 из описания AuthenticationForm, что бы получить calss UserLoginForm в данном виде:
+
+                    class UserLoginForm(AuthenticationForm):
+
+                        username = forms.CharField(
+                            widget=forms.TextInput(attrs={'autofocus': True})
+                        )
+
+                        password = forms.CharField(
+                            label = ("Password"),
+                            strip = False, 
+                            widget = forms.PasswordInput(attrs={'autocomplete':'current-password'}),
+                        )
+
+                        class Meta:
+                            model = User 
+                            fields = ['username', 'password']
+
+                3. Уберу для password strip и label
